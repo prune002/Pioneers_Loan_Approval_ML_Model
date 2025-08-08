@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loan Approval — Simple Credit Score</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#0f1220; --card:#191e2f; --text:#e9edf3; --muted:#9aa4b2;
+    --ok:#2dd4bf; --bad:#fb7185; --accent:#7c3aed; --line:#2a304a;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg); color:var(--text); font-family:Inter,system-ui,Arial,sans-serif; margin:0; padding:24px;}
+  .wrap{max-width:1100px;margin:0 auto}
+  h1{margin:0 0 14px; font-size:22px}
+  h2{margin:0 0 10px; font-size:16px; color:var(--muted)}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  .card{background:var(--card); border-radius:14px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,.25)}
+  .row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+  label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px}
+  .hint{font-size:11px; color:#9aa4b2; margin-top:4px}
+  input, select{width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#12162a; color:#e9edf3}
+  .grid-form{display:grid; grid-template-columns:repeat(2,1fr); gap:12px}
+  .kpi{font-size:44px; font-weight:800}
+  .ok{color:var(--ok)} .bad{color:var(--bad)}
+  .pill{background:#12162a; border:1px solid var(--line); color:#c7cfe0; padding:6px 10px; border-radius:999px; font-size:12px}
+  .slider{width:100%}
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th,td{padding:8px; border-bottom:1px solid var(--line)} th{text-align:left; color:#aab3c7}
+  .footer{margin-top:10px; color:#9aa4b2; font-size:12px}
+  .btn{background:#2b3353;border:1px solid #414a73;color:#e9edf3;padding:10px 14px;border-radius:10px;cursor:pointer}
+  @media (max-width: 900px){ .grid{grid-template-columns:1fr} .grid-form{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Loan Approval — Simple Credit Score</h1>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Applicant & Loan Inputs (final model columns)</h2>
+      <div class="grid-form">
+        <div>
+          <label>ApplicantIncome</label>
+          <input type="number" id="ApplicantIncome" placeholder="e.g., 50000" step="0.01">
+        </div>
+        <div>
+          <label>CoapplicantIncome</label>
+          <input type="number" id="CoapplicantIncome" placeholder="e.g., 10000" step="0.01">
+        </div>
+        <div>
+          <label>LoanAmount</label>
+          <input type="number" id="LoanAmount" placeholder="e.g., 120000" step="0.01">
+        </div>
+        <div>
+          <label>DTI (Debt-to-Income) — auto computed</label>
+          <input type="number" id="DTI" step="0.0001" readonly>
+        </div>
+        <div>
+          <label>TotalIncome — auto computed</label>
+          <input type="number" id="TotalIncome" step="0.01" readonly>
+        </div>
+        <div>
+          <label>Married</label>
+          <select id="Married">
+            <option value="Yes">Yes</option>
+            <option value="No">No</option>
+          </select>
+        </div>
+        <div>
+          <label>Education</label>
+          <select id="Education">
+            <option value="Graduate">Graduate</option>
+            <option value="Not Graduate">Not Graduate</option>
+          </select>
+        </div>
+        <div>
+          <label>Property_Area</label>
+          <select id="Property_Area">
+            <option value="Urban">Urban</option>
+            <option value="Semiurban">Semiurban</option>
+            <option value="Rural">Rural</option>
+          </select>
+        </div>
+
+        <!-- RENAMED + CONSTRAINED FIELDS -->
+        <div>
+          <label>Internal Score — Financial Profile (A15)</label>
+          <input type="number" id="A15" placeholder="0–10" step="1" min="0" max="10" title="Internal numeric score from the source data (0–10). If unknown, leave 0.">
+          <div class="hint">A simple internal numeric feature from the dataset (0–10). Higher is better.</div>
+        </div>
+        <div>
+          <label>Internal Score — Account Behavior (A7)</label>
+          <input type="number" id="A7" placeholder="0–10" step="1" min="0" max="10" title="Internal numeric score from the source data (0–10). If unknown, leave 0.">
+          <div class="hint">Another internal numeric feature (0–10). Higher is better.</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="btnCalc">Calculate Score</button>
+        <button class="btn" id="btnReset">Reset</button>
+        <span class="pill">Threshold <span id="thrText">0.62</span></span>
+      </div>
+      <input id="thr" class="slider" type="range" min="0.30" max="0.90" step="0.01" value="0.62">
+    </div>
+
+    <div class="card">
+      <h2>Score & Decision</h2>
+      <div class="row">
+        <div>
+          <div class="pill">Credit Score (0–100)</div>
+          <div class="kpi" id="scoreKPI">—</div>
+        </div>
+        <div>
+          <div class="pill">Approval Probability (≈ score/100)</div>
+          <div class="kpi" id="probKPI">—</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div class="pill">Decision:</div>
+        <div class="kpi" id="decisionKPI">—</div>
+      </div>
+
+      <div style="margin-top:12px">
+        <h2>How the simple score is computed</h2>
+        <table>
+          <thead><tr><th>Component</th><th>Formula</th><th>Max pts</th></tr></thead>
+          <tbody>
+            <tr><td>DTI (lower better)</td><td>40 × clamp((0.60 − DTI) / 0.60, 0, 1)</td><td>40</td></tr>
+            <tr><td>ApplicantIncome</td><td>15 × clamp(ApplicantIncome / 100000, 0, 1)</td><td>15</td></tr>
+            <tr><td>CoapplicantIncome</td><td>5 × clamp(CoapplicantIncome / 50000, 0, 1)</td><td>5</td></tr>
+            <tr><td>Education</td><td>Graduate: +5, Not Graduate: +2</td><td>5</td></tr>
+            <tr><td>Married</td><td>Yes: +3, No: +0</td><td>3</td></tr>
+            <tr><td>Property_Area</td><td>Urban: +5, Semiurban: +3, Rural: +0</td><td>5</td></tr>
+            <tr><td>Internal Score — Financial Profile (A15)</td><td>3 × clamp(A15 / 10, 0, 1)</td><td>3</td></tr>
+            <tr><td>Internal Score — Account Behavior (A7)</td><td>2 × clamp(A7 / 10, 0, 1)</td><td>2</td></tr>
+            <tr><td><b>Total</b></td><td>Sum of components, capped at 100</td><td><b>100</b></td></tr>
+          </tbody>
+        </table>
+        <div class="footer">This is a simple, illustrative score — not the ML model. Approval if <code>score/100 ≥ threshold</code>.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function val(id){ const v = parseFloat(document.getElementById(id).value); return isFinite(v) ? v : 0; }
+function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+function recomputeDerived(){
+  const ai = val('ApplicantIncome');
+  const ci = val('CoapplicantIncome');
+  const loan = val('LoanAmount');
+  const total = ai + ci;
+  const dti = loan > 0 ? (loan / (total + 1.0)) : 0;
+  document.getElementById('TotalIncome').value = total.toFixed(2);
+  document.getElementById('DTI').value = dti.toFixed(4);
+}
+
+function computeScore(){
+  recomputeDerived();
+
+  const ai = val('ApplicantIncome');
+  const ci = val('CoapplicantIncome');
+  const dti = parseFloat(document.getElementById('DTI').value) || 0;
+  const education = document.getElementById('Education').value;
+  const married = document.getElementById('Married').value;
+  const area = document.getElementById('Property_Area').value;
+  const a15 = val('A15');
+  const a7  = val('A7');
+
+  // Components (weights)
+  const s_dti   = 40 * clamp01((0.60 - dti) / 0.60);
+  const s_ai    = 15 * clamp01(ai / 100000);
+  const s_ci    =  5 * clamp01(ci /  50000);
+  const s_edu   = (education === 'Graduate') ? 5 : 2;
+  const s_mar   = (married === 'Yes') ? 3 : 0;
+  const s_area  = (area === 'Urban') ? 5 : (area === 'Semiurban' ? 3 : 0);
+  const s_a15   = 3 * clamp01(a15 / 10);
+  const s_a7    = 2 * clamp01(a7  / 10);
+
+  let score = s_dti + s_ai + s_ci + s_edu + s_mar + s_area + s_a15 + s_a7;
+  score = Math.max(0, Math.min(100, score));
+  const prob = score / 100;
+
+  const thr = parseFloat(document.getElementById('thr').value) || 0.62;
+  const approved = prob >= thr;
+
+  document.getElementById('thrText').textContent = thr.toFixed(2);
+  document.getElementById('scoreKPI').textContent = score.toFixed(1);
+  document.getElementById('probKPI').textContent = (prob*100).toFixed(1) + "%";
+  const d = document.getElementById('decisionKPI');
+  d.textContent = approved ? "APPROVED" : "NOT APPROVED";
+  d.className = "kpi " + (approved ? "ok" : "bad");
+}
+
+function resetForm(){
+  ['ApplicantIncome','CoapplicantIncome','LoanAmount','A15','A7'].forEach(id=>document.getElementById(id).value = "");
+  document.getElementById('Education').value = 'Graduate';
+  document.getElementById('Married').value = 'Yes';
+  document.getElementById('Property_Area').value = 'Urban';
+  document.getElementById('thr').value = 0.62;
+  document.getElementById('thrText').textContent = '0.62';
+  document.getElementById('TotalIncome').value = "";
+  document.getElementById('DTI').value = "";
+  document.getElementById('scoreKPI').textContent = "—";
+  document.getElementById('probKPI').textContent = "—";
+  document.getElementById('decisionKPI').textContent = "—";
+  document.getElementById('decisionKPI').className = "kpi";
+}
+
+['ApplicantIncome','CoapplicantIncome','LoanAmount','A15','A7',
+ 'Education','Married','Property_Area','thr'].forEach(id=>{
+   document.getElementById(id).addEventListener('input', computeScore);
+});
+document.getElementById('btnCalc').addEventListener('click', computeScore);
+document.getElementById('btnReset').addEventListener('click', resetForm);
+
+resetForm();
+</script>
+</body>
+</html>
